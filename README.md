@@ -13,18 +13,22 @@ checks for updates, and opens the interface in the browser of your choice.
 - **Built-in log panel** — live engine output inside the GUI (backend + web UI, which share one process).
 - **One-click harness installer** — if DeepSeek Harness is missing, the launcher
   offers to download, install dependencies, and build it automatically, so brand-new
-  users never need to touch a terminal.
+  users never need to touch a terminal. Uses a faster China mirror automatically
+  where the official npm registry is slow.
 - **Status indicator** — shows whether your DeepSeek Harness installation is up to date.
-- **Three main buttons**:
+- **Main action buttons**:
   1. **Check Update** — compares the installed harness against the latest version
      (works even where GitHub is blocked, via a CDN mirror).
   2. **Restart Backend** — stops and restarts the engine cleanly (no orphaned processes).
   3. **Open DS Harness** — opens the interface in a standalone app-style browser window.
+  4. **Install Harness** — appears automatically when the harness is missing.
 - **First-run wizard** — choose Chrome or Edge, with a "Remember my choice" checkbox.
-- **Prerequisite check** — detects missing Node.js / pnpm at startup and points
-  new users to the correct install pages instead of failing silently.
+- **Prerequisite check** — detects missing Node.js / Git / pnpm at startup, installs
+  pnpm automatically via npm when possible, and points users to install pages otherwise.
 - **Guaranteed cleanup** — the engine runs inside a Windows Job Object; closing the app kills
   the entire process tree (`cmd → pnpm → node`), so nothing is left running.
+- **Self-healing engine start** — the launcher automatically retries if the engine's
+  first boot hits a transient Windows file-lock issue.
 
 ## Screenshot
 
@@ -89,11 +93,17 @@ The API key is entered in the harness itself, so it never passes through this la
 Pushing a version tag builds the standalone exe in GitHub Actions and attaches it to a release:
 
 ```powershell
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 See [.github/workflows/release.yml](.github/workflows/release.yml).
+
+Power users can also run the installer headlessly (used by CI):
+
+```powershell
+DeepSeekHarnessLauncher.exe --install-harness "D:\dsh"
+```
 
 ## Project structure
 
@@ -106,7 +116,7 @@ deepseek-harness-launcher/
 ├── src/
 │   └── DshLauncher/
 │       ├── DshLauncher.csproj
-│       ├── Program.cs              # entry point
+│       ├── Program.cs              # entry point (+ --install-harness CLI mode)
 │       ├── app.manifest            # DPI awareness, non-admin
 │       ├── Assets/
 │       │   └── app.ico             # app icon
@@ -116,6 +126,7 @@ deepseek-harness-launcher/
 │       │   ├── BackendService.cs   # engine lifecycle + Job Object cleanup
 │       │   ├── BrowserService.cs   # Chrome/Edge app-window launcher
 │       │   ├── ConfigService.cs    # config.json
+│       │   ├── HarnessInstallerService.cs  # one-click clone/install/build
 │       │   ├── PrerequisitesService.cs  # Node.js / pnpm detection
 │       │   └── UpdateService.cs    # version comparison + CDN fallback
 │       └── Forms/
@@ -128,7 +139,7 @@ deepseek-harness-launcher/
 
 ## Roadmap
 
-- Auto-download and install harness updates from the GUI.
+- One-click harness *updates* (first-time install is done; add updates next).
 - Settings page for engine path/port (instead of editing config.json).
 - Custom hotkey to show/hide the launcher.
 - Dark/light theme toggle.
