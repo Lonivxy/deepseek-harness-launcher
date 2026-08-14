@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+publish/
+*.user
+
+# IDE
+.vs/
+.idea/
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local runtime data
+*.log
+.DS_Store
