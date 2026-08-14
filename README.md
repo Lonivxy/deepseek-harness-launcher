@@ -1,6 +1,6 @@
 # DSH Launcher
 
-[![CI](https://github.com/YOUR_USERNAME/dsh-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/dsh-launcher/actions/workflows/ci.yml)
+[![CI](https://github.com/Lonivxy/dsh-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/Lonivxy/dsh-launcher/actions/workflows/ci.yml)
 
 A friendly Windows desktop companion for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 No command windows, no browser tabs — just a clean GUI that starts the engine, streams its logs,
