@@ -9,10 +9,18 @@ namespace DshLauncher.Services;
 /// </summary>
 public class PrerequisitesService
 {
-    public record CheckResult(bool NodeInstalled, bool PnpmInstalled);
+    public record CheckResult(
+        bool NodeInstalled,
+        bool NpmInstalled,
+        bool PnpmInstalled,
+        bool GitInstalled);
 
     public CheckResult Check()
-        => new(RunVersionCommand("node --version"), RunVersionCommand("pnpm --version"));
+        => new(
+            RunVersionCommand("node --version"),
+            RunVersionCommand("npm --version"),
+            RunVersionCommand("pnpm --version"),
+            RunVersionCommand("git --version"));
 
     /// <summary>Runs a tiny version command and reports whether it produced output.</summary>
     private static bool RunVersionCommand(string command)

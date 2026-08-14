@@ -23,6 +23,8 @@ public class BackendService : IDisposable
     private Process? _process;
     private IntPtr _job = IntPtr.Zero;
     private CancellationTokenSource? _readinessCts;
+    private bool _stopping;
+    private int _startAttempts;
 
     private readonly string _harnessPath;
     private readonly string _url;
@@ -38,6 +40,13 @@ public class BackendService : IDisposable
     /// <summary>Starts the engine unless it is already responding on its port.</summary>
     public void Start()
     {
+        if (_stopping)
+        {
+            return;
+        }
+
+        _startAttempts++;
+
         if (IsRunning)
         {
             Emit("Engine is already running (process active).");
@@ -72,8 +81,25 @@ public class BackendService : IDisposable
         _process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Emit(e.Data); };
         _process.Exited += (_, _) =>
         {
+            _readinessCts?.Cancel();
             Emit("Engine process exited.");
             SetReady(false);
+
+            // First boot sometimes fails while Windows antivirus is scanning the
+            // freshly created profile links (EBUSY on symlink creation). Retrying
+            // a couple of times gets past it automatically.
+            if (!_stopping && _startAttempts < 3)
+            {
+                Emit("Engine exited before becoming ready — retrying...");
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(5000);
+                    if (!_stopping)
+                    {
+                        Start();
+                    }
+                });
+            }
         };
 
         _process.Start();
@@ -92,6 +118,7 @@ public class BackendService : IDisposable
     /// <summary>Stops the engine cleanly by terminating the job (kills the full tree).</summary>
     public void Stop()
     {
+        _stopping = true;
         _readinessCts?.Cancel();
 
         if (_job != IntPtr.Zero)
@@ -147,9 +174,10 @@ public class BackendService : IDisposable
         {
             while (!token.IsCancellationRequested)
             {
-                if (IsReachable())
-                {
-                    SetReady(true);
+        if (IsReachable())
+        {
+            _startAttempts = 0;
+            SetReady(true);
                     Emit($"Engine ready at {_url}");
                     return;
                 }

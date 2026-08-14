@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using DshLauncher.Services;
@@ -26,9 +27,12 @@ public partial class MainForm : Form
     private Label _updatePill = null!;
     private Label _enginePill = null!;
     private Label _browserLabel = null!;
+    private Button _installButton = null!;
+    private FlowLayoutPanel _actionsPanel = null!;
 
     private string? _sessionBrowser; // chosen this session but not remembered
     private bool _closing;
+    private CancellationTokenSource? _installCts;
 
     public MainForm()
     {
@@ -80,18 +84,21 @@ public partial class MainForm : Form
         header.Controls.Add(headerInner);
 
         // 2) Action buttons strip.
-        var actions = new FlowLayoutPanel
+        _actionsPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             WrapContents = false,
             Padding = new Padding(0, 3, 0, 3),
         };
-        actions.Controls.Add(MakeButton("Check Update", BtnCheckUpdate_Click));
-        actions.Controls.Add(MakeButton("Restart Backend", (_, _) => _backend.Restart()));
-        actions.Controls.Add(MakeButton("Open DS Harness", (_, _) => OpenHarness()));
+        _actionsPanel.Controls.Add(MakeButton("Check Update", BtnCheckUpdate_Click));
+        _actionsPanel.Controls.Add(MakeButton("Restart Backend", (_, _) => _backend.Restart()));
+        _actionsPanel.Controls.Add(MakeButton("Open DS Harness", (_, _) => OpenHarness()));
+        _installButton = MakeButton("Install Harness", async (_, _) => await RunInstallAsync());
+        _installButton.Visible = !HarnessInstallerService.IsInstalled(_config.Config.HarnessPath);
+        _actionsPanel.Controls.Add(_installButton);
 
         var actionStrip = new Panel { Dock = DockStyle.Top, Height = 42 };
-        actionStrip.Controls.Add(actions);
+        actionStrip.Controls.Add(_actionsPanel);
 
         // 3) Settings strip: browser picker, right-aligned.
         _browserLabel = new Label { AutoSize = true, Anchor = AnchorStyles.Left };
@@ -189,7 +196,7 @@ public partial class MainForm : Form
         }
 
         _ = CheckPrerequisitesAndStartAsync();
-        _ = RunUpdateCheckAsync(silent: false);
+        _ = RunUpdateCheckAsync(silent: !HarnessInstallerService.IsInstalled(_config.Config.HarnessPath));
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -197,6 +204,7 @@ public partial class MainForm : Form
         if (!_closing)
         {
             _closing = true;
+            _installCts?.Cancel();
             _backend.Stop();
             _config.Save();
         }
@@ -235,26 +243,121 @@ public partial class MainForm : Form
             return;
         }
 
-        if (!result.PnpmInstalled)
+        if (!result.GitInstalled)
         {
-            AppendLog("pnpm not found — the engine cannot start without it.");
+            AppendLog("Git not found — it is needed to download the harness.");
             var answer = MessageBox.Show(
                 this,
-                "pnpm is required to run DeepSeek Harness, but it was not found.\n\n" +
-                "Install it with:  npm install -g pnpm\n\n" +
-                "Open the pnpm installation page?",
+                "Git is required to download DeepSeek Harness, but it was not found on this computer.\n\n" +
+                "Open the Git download page?",
                 "Missing requirement",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
             if (answer == DialogResult.Yes)
             {
-                BrowserService.OpenApp("https://pnpm.io/installation");
+                BrowserService.OpenApp("https://git-scm.com/downloads");
             }
             return;
         }
 
-        AppendLog("Prerequisites OK (Node.js + pnpm found). Starting engine...");
+        if (!result.PnpmInstalled)
+        {
+            AppendLog("pnpm not found — it can be installed automatically via npm.");
+            var answer = MessageBox.Show(
+                this,
+                "pnpm (the package manager used by DeepSeek Harness) was not found.\n\n" +
+                "Install it automatically now?",
+                "Missing requirement",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (answer == DialogResult.Yes)
+            {
+                var installer = new HarnessInstallerService();
+                installer.LogLine += SafeAppendLog;
+                if (!await installer.EnsurePnpmAsync())
+                {
+                    AppendLog("pnpm installation did not complete.");
+                    return;
+                }
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        if (!HarnessInstallerService.IsInstalled(_config.Config.HarnessPath))
+        {
+            AppendLog("DeepSeek Harness is not installed at " + _config.Config.HarnessPath);
+            var answer = MessageBox.Show(
+                this,
+                "DeepSeek Harness is not installed yet.\n\n" +
+                "The launcher can download and set it up for you automatically " +
+                $"(downloads ~1 GB of packages; saved to {_config.Config.HarnessPath}).\n\n" +
+                "First-time setup typically takes 5-10 minutes depending on your internet speed.\n\n" +
+                "Install it now?",
+                "One-time setup",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+            if (answer == DialogResult.Yes)
+            {
+                await RunInstallAsync();
+                return; // RunInstallAsync starts the engine when it succeeds.
+            }
+
+            AppendLog("Setup skipped — the engine will not start until the harness is installed.");
+            return;
+        }
+
+        AppendLog("Prerequisites OK (Node.js, pnpm, git found). Starting engine...");
         _backend.Start();
+    }
+
+    /// <summary>Runs the one-click harness installer, streaming progress to the log.</summary>
+    private async Task RunInstallAsync()
+    {
+        SetControlsEnabled(false);
+        _installCts = new CancellationTokenSource();
+        try
+        {
+            var installer = new HarnessInstallerService();
+            installer.LogLine += SafeAppendLog;
+
+            var ok = await installer.InstallAsync(_config.Config.HarnessPath, _installCts.Token);
+            if (ok)
+            {
+                AppendLog("DeepSeek Harness is ready. Starting the engine...");
+                _backend.Start();
+            }
+            else
+            {
+                MessageBox.Show(this,
+                    "Installation did not complete. Check the log above for details.",
+                    "Install failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        finally
+        {
+            _installCts?.Dispose();
+            _installCts = null;
+            SetControlsEnabled(true);
+        }
+    }
+
+    private void SetControlsEnabled(bool enabled)
+    {
+        foreach (Control control in _actionsPanel.Controls)
+        {
+            control.Enabled = enabled;
+        }
+    }
+
+    private void SafeAppendLog(string line)
+    {
+        if (!IsDisposed && IsHandleCreated)
+        {
+            BeginInvoke(() => AppendLog(line));
+        }
     }
 
     private async Task RunUpdateCheckAsync(bool silent)
@@ -303,6 +406,12 @@ public partial class MainForm : Form
 
     private void OpenHarness()
     {
+        if (!HarnessInstallerService.IsInstalled(_config.Config.HarnessPath))
+        {
+            AppendLog("Cannot open the interface — the harness is not installed yet.");
+            return;
+        }
+
         var browser = _sessionBrowser ?? _config.Config.BrowserChoice;
         BrowserService.OpenApp(_config.Config.HarnessUrl, browser);
         AppendLog("Opened DS Harness interface.");

@@ -11,6 +11,9 @@ checks for updates, and opens the interface in the browser of your choice.
 ## Features
 
 - **Built-in log panel** — live engine output inside the GUI (backend + web UI, which share one process).
+- **One-click harness installer** — if DeepSeek Harness is missing, the launcher
+  offers to download, install dependencies, and build it automatically, so brand-new
+  users never need to touch a terminal.
 - **Status indicator** — shows whether your DeepSeek Harness installation is up to date.
 - **Three main buttons**:
   1. **Check Update** — compares the installed harness against the latest version
@@ -32,21 +35,24 @@ checks for updates, and opens the interface in the browser of your choice.
 - Windows 10 / 11
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (only needed to build from source)
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) installed locally
-  (see one-time setup below)
+  (or let the launcher install it for you on first run)
+- Git (the launcher checks for it and points you to the installer if missing)
 - Chrome or Edge installed
 
 ## Quick start (end users)
 
 1. Download the latest `DeepSeekHarnessLauncher.exe` from the **Releases** page.
 2. Run it. On first launch a wizard asks which browser to use.
-3. Click **Open DS Harness** once the engine reports online and enter your API key
+3. If DeepSeek Harness isn't installed, the launcher offers to download and set
+   it up automatically — just click **Yes** and wait a few minutes.
+4. Click **Open DS Harness** once the engine reports online and enter your API key
    in the harness's own settings.
 
 Closing the app stops the engine. No console windows, no leftover processes.
 
-## One-time setup: install DeepSeek Harness
+## Manual setup (alternative to the one-click installer)
 
-If you have not installed the harness yet:
+If you prefer to install DeepSeek Harness yourself:
 
 ```powershell
 git clone https://github.com/deepseek-ai/deepseek-harness.git D:\dsh
