@@ -30,26 +30,7 @@ public class UpdateService
         CancellationToken ct = default)
     {
         var local = GetLocalVersion(harnessPath);
-        string? latest = null;
-
-        try
-        {
-            using var http = new HttpClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DSH-Launcher/1.0");
-            http.Timeout = TimeSpan.FromSeconds(10);
-
-            var json = await http.GetStringAsync(
-                $"https://api.github.com/repos/{HarnessRepo}/releases/latest", ct);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("tag_name", out var tag))
-            {
-                latest = tag.GetString()?.TrimStart('v');
-            }
-        }
-        catch
-        {
-            latest = null; // offline or rate-limited -> Unknown
-        }
+        var latest = await FetchLatestVersionAsync(ct);
 
         if (string.IsNullOrWhiteSpace(local) || string.IsNullOrWhiteSpace(latest))
         {
@@ -59,6 +40,61 @@ public class UpdateService
         return IsNewer(latest!, local!)
             ? (UpdateStatus.UpdateAvailable, latest, local)
             : (UpdateStatus.UpToDate, latest, local);
+    }
+
+    /// <summary>
+    /// Fetches the newest harness version from the GitHub Releases API, with a
+    /// jsDelivr CDN fallback for networks where api.github.com is blocked or
+    /// rate-limited.
+    /// </summary>
+    private static async Task<string?> FetchLatestVersionAsync(CancellationToken ct)
+    {
+        // Primary source: jsDelivr CDN (works even where GitHub is blocked or
+        // when the repo has no formal releases; tracks the default branch HEAD).
+        try
+        {
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(8);
+
+            var json = await http.GetStringAsync(
+                $"https://cdn.jsdelivr.net/gh/{HarnessRepo}@latest/package.json", ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("version", out var version))
+            {
+                return version.GetString();
+            }
+        }
+        catch
+        {
+            // Fall through to the GitHub tags API below.
+        }
+
+        // Fallback: GitHub tags API (first tag is the newest).
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("DSH-Launcher/1.0");
+            http.Timeout = TimeSpan.FromSeconds(8);
+
+            var json = await http.GetStringAsync(
+                $"https://api.github.com/repos/{HarnessRepo}/tags", ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array
+                && doc.RootElement.GetArrayLength() > 0)
+            {
+                var first = doc.RootElement[0];
+                if (first.TryGetProperty("name", out var name))
+                {
+                    return name.GetString()?.TrimStart('v');
+                }
+            }
+        }
+        catch
+        {
+            // Both sources failed; the caller reports Unknown.
+        }
+
+        return null;
     }
 
     /// <summary>Reads the "version" field from the harness package.json.</summary>

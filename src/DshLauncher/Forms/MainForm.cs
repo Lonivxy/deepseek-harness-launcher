@@ -25,8 +25,6 @@ public partial class MainForm : Form
     private TextBox _log = null!;
     private Label _updatePill = null!;
     private Label _enginePill = null!;
-    private TextBox _apiKeyBox = null!;
-    private Button _apiKeyButton = null!;
     private Label _browserLabel = null!;
 
     private string? _sessionBrowser; // chosen this session but not remembered
@@ -50,7 +48,6 @@ public partial class MainForm : Form
         BuildLayout();
         WireBackendEvents();
 
-        RefreshApiKeyUi();
         RefreshBrowserLabel();
     }
 
@@ -79,7 +76,7 @@ public partial class MainForm : Form
         headerInner.Controls.Add(title, 0, 0);
         headerInner.Controls.Add(_updatePill, 1, 0);
 
-        var header = new Panel { Dock = DockStyle.Top, Height = 30 };
+        var header = new Panel { Dock = DockStyle.Top, Height = 32 };
         header.Controls.Add(headerInner);
 
         // 2) Action buttons strip.
@@ -93,42 +90,27 @@ public partial class MainForm : Form
         actions.Controls.Add(MakeButton("Restart Backend", (_, _) => _backend.Restart()));
         actions.Controls.Add(MakeButton("Open DS Harness", (_, _) => OpenHarness()));
 
-        var actionStrip = new Panel { Dock = DockStyle.Top, Height = 34 };
+        var actionStrip = new Panel { Dock = DockStyle.Top, Height = 42 };
         actionStrip.Controls.Add(actions);
 
-        // 3) Settings strip: API key row + browser picker, right-aligned.
-        _apiKeyBox = new TextBox
-        {
-            PasswordChar = '*',
-            Width = 220,
-            ReadOnly = true,
-            Anchor = AnchorStyles.Left,
-        };
-        _apiKeyButton = MakeButton("", BtnApiKey_Click);
+        // 3) Settings strip: browser picker, right-aligned.
         _browserLabel = new Label { AutoSize = true, Anchor = AnchorStyles.Left };
-        var apiKeyLabel = new Label { Text = "API Key:", AutoSize = true, Anchor = AnchorStyles.Left };
         var browserHint = new Label { Text = "Browser:", AutoSize = true, Anchor = AnchorStyles.Left };
         var changeBrowser = MakeButton("Change", (_, _) => ChangeBrowser());
 
-        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 7 };
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        settings.Controls.Add(apiKeyLabel, 0, 0);
-        settings.Controls.Add(_apiKeyBox, 1, 0);
-        settings.Controls.Add(_apiKeyButton, 2, 0);
-        settings.Controls.Add(new Label(), 3, 0); // spacer
-        settings.Controls.Add(browserHint, 4, 0);
-        settings.Controls.Add(_browserLabel, 5, 0);
-        settings.Controls.Add(changeBrowser, 6, 0);
+        settings.Controls.Add(new Label { AutoSize = true }, 0, 0); // zero-width spacer
+        settings.Controls.Add(browserHint, 1, 0);
+        settings.Controls.Add(_browserLabel, 2, 0);
+        settings.Controls.Add(changeBrowser, 3, 0);
 
-        var settingsStrip = new Panel { Dock = DockStyle.Top, Height = 32 };
+        var settingsStrip = new Panel { Dock = DockStyle.Top, Height = 38 };
         settingsStrip.Controls.Add(settings);
 
         // 4) Footer strip: engine status.
@@ -147,7 +129,7 @@ public partial class MainForm : Form
         footerInner.Controls.Add(footerHint, 0, 0);
         footerInner.Controls.Add(_enginePill, 1, 0);
 
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 28 };
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 30 };
         footer.Controls.Add(footerInner);
 
         // 5) Log panel fills everything between the strips.
@@ -308,10 +290,11 @@ public partial class MainForm : Form
 
             default:
                 SetPill(_updatePill, "Update: Unknown", Color.FromArgb(117, 117, 117));
+                AppendLog("Update check failed — could not reach the GitHub API or the CDN mirror.");
                 if (!silent)
                 {
                     MessageBox.Show(this,
-                        "Could not check for updates (offline, or the harness was not found).",
+                        "Could not check for updates. Check your internet connection and try again.",
                         "Update check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 break;
@@ -323,17 +306,6 @@ public partial class MainForm : Form
         var browser = _sessionBrowser ?? _config.Config.BrowserChoice;
         BrowserService.OpenApp(_config.Config.HarnessUrl, browser);
         AppendLog("Opened DS Harness interface.");
-    }
-
-    private void BtnApiKey_Click(object? sender, EventArgs e)
-    {
-        using var dialog = new ApiKeyDialog(_config.HasApiKey());
-        if (dialog.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.EnteredKey))
-        {
-            _config.WriteApiKey(dialog.EnteredKey!);
-            AppendLog("API key saved to " + _config.Config.ApiKeyPath);
-            RefreshApiKeyUi();
-        }
     }
 
     private void ChangeBrowser()
@@ -389,27 +361,20 @@ public partial class MainForm : Form
         _log.ScrollToCaret();
     }
 
-    private void RefreshApiKeyUi()
-    {
-        if (_config.HasApiKey())
-        {
-            _apiKeyBox.Text = "•••••••••••• (saved)";
-            _apiKeyButton.Text = "Change Key";
-        }
-        else
-        {
-            _apiKeyBox.Text = "";
-            _apiKeyBox.PlaceholderText = "No key saved yet (sk-...)";
-            _apiKeyButton.Text = "Save Key";
-        }
-    }
-
     private void RefreshBrowserLabel()
         => _browserLabel.Text = (_sessionBrowser ?? _config.Config.BrowserChoice) + " ▾";
 
     private static Button MakeButton(string text, EventHandler onClick)
     {
-        var button = new Button { Text = text, Width = 116, AutoSize = false };
+        // Explicit height so text is never clipped on high-DPI displays.
+        var button = new Button
+        {
+            Text = text,
+            Width = 116,
+            Height = 28,
+            AutoSize = false,
+            Margin = new Padding(0, 0, 8, 0),
+        };
         button.Click += onClick;
         return button;
     }

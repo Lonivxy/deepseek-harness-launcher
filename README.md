@@ -19,8 +19,6 @@ manages your API key, checks for updates, and opens the interface in the browser
 - **First-run wizard** — choose Chrome or Edge, with a "Remember my choice" checkbox.
 - **Prerequisite check** — detects missing Node.js / pnpm at startup and points
   new users to the correct install pages instead of failing silently.
-- **Secure API key handling** — masked input, "do you really want to change?" confirmation,
-  stored in a standard `.env` file so automation/CI can read it.
 - **Guaranteed cleanup** — the engine runs inside a Windows Job Object; closing the app kills
   the entire process tree (`cmd → pnpm → node`), so nothing is left running.
 
@@ -40,8 +38,8 @@ manages your API key, checks for updates, and opens the interface in the browser
 
 1. Download the latest `DSHLauncher.exe` from the **Releases** page.
 2. Run it. On first launch a wizard asks which browser to use.
-3. Enter your DeepSeek API key when prompted (optional but recommended).
-4. Click **Open DS Harness** once the engine reports online.
+3. Click **Open DS Harness** once the engine reports online and enter your API key
+   in the harness's own settings.
 
 Closing the app stops the engine. No console windows, no leftover processes.
 
@@ -76,11 +74,8 @@ dotnet publish src/DshLauncher/DshLauncher.csproj -c Release -r win-x64 --self-c
 | Setting | Location | Purpose |
 |---|---|---|
 | App settings | `%APPDATA%\DshLauncher\config.json` | Browser choice, harness path, port |
-| API key | `<harness>\\.env` (`DEEPSEEK_API_KEY=...`) | Key used by the harness and your scripts |
 
-The API key is **masked in the GUI and never written to `config.json`**. It is stored in
-plain text in `.env` on your own machine — standard practice for local automation, but treat
-the file like a secret.
+The API key is entered in the harness itself, so it never passes through this launcher.
 
 ## Release workflow
 
