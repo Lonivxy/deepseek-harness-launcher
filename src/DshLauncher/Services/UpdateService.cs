@@ -73,7 +73,7 @@ public class UpdateService
         try
         {
             using var http = new HttpClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DSH-Launcher/1.0");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("DeepSeek-Harness-Launcher/1.1");
             http.Timeout = TimeSpan.FromSeconds(8);
 
             var json = await http.GetStringAsync(

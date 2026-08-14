@@ -25,7 +25,7 @@ public class ConfigService
     {
         ConfigDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "DshLauncher");
+            "DeepSeekHarnessLauncher");
         ConfigPath = Path.Combine(ConfigDir, "config.json");
     }
 

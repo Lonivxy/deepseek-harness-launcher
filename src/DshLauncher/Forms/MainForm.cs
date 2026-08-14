@@ -36,7 +36,7 @@ public partial class MainForm : Form
         var cfg = _config.Config;
         _backend = new BackendService(cfg.HarnessPath, cfg.HarnessUrl);
 
-        Text = "DSH Launcher";
+        Text = "DeepSeek Harness Launcher";
         // Fixed, non-resizable window so the layout always renders as designed.
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -61,7 +61,7 @@ public partial class MainForm : Form
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(2) ?? "?";
         var title = new Label
         {
-            Text = $"DSH Launcher  v{version}",
+            Text = $"DeepSeek Harness Launcher  v{version}",
             Font = new Font(Font ?? SystemFonts.DefaultFont, FontStyle.Bold),
             AutoSize = true,
             Anchor = AnchorStyles.Left,

@@ -24,7 +24,7 @@ public partial class FirstRunWizard : Form
 
     public FirstRunWizard(string currentChoice, bool showRemember)
     {
-        Text = showRemember ? "Welcome to DSH Launcher" : "Browser Settings";
+        Text = showRemember ? "Welcome to DeepSeek Harness Launcher" : "Browser Settings";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;

@@ -40,11 +40,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DSHLauncher-win-x64
-          path: publish/DSHLauncher.exe
+          name: DeepSeekHarnessLauncher-win-x64
+          path: publish/DeepSeekHarnessLauncher.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: publish/DSHLauncher.exe
+          files: publish/DeepSeekHarnessLauncher.exe
           generate_release_notes: true

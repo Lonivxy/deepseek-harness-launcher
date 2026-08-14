@@ -8,13 +8,13 @@
     <Nullable>enable</Nullable>
 
     <!-- App identity -->
-    <AssemblyName>DSHLauncher</AssemblyName>
+    <AssemblyName>DeepSeekHarnessLauncher</AssemblyName>
     <RootNamespace>DshLauncher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.0.0</Version>
-    <InformationalVersion>1.0.0</InformationalVersion>
+    <Version>1.1.0</Version>
+    <InformationalVersion>1.1.0</InformationalVersion>
 
     <!-- Packaging: single-file, framework-dependent by default (dev).
          The release workflow overrides SelfContained=true for a portable exe. -->
