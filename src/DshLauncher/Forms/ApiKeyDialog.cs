@@ -26,7 +26,7 @@ public partial class ApiKeyDialog : Form
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
         Font = new Font("Segoe UI", 9F);
-        ClientSize = new Size(360, 150);
+        ClientSize = new Size(380, 170);
 
         var layout = new TableLayoutPanel
         {

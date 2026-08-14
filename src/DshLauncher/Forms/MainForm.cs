@@ -10,19 +10,24 @@ namespace DshLauncher.Forms;
 /// <summary>
 /// Main window: live engine log, update status, API-key management,
 /// and the three primary actions (Check Update / Restart Backend / Open DS Harness).
+///
+/// Layout is deliberately simple and deterministic: fixed-height docked strips
+/// (header / actions / settings / footer) around a fill-size log panel, and a
+/// locked window size, so it renders correctly regardless of DPI or screen size.
 /// </summary>
 public partial class MainForm : Form
 {
     private readonly ConfigService _config = new();
     private readonly BackendService _backend;
     private readonly UpdateService _updater = new();
+    private readonly PrerequisitesService _prereq = new();
 
-    private readonly TextBox _log;
-    private readonly Label _updatePill;
-    private readonly Label _enginePill;
-    private readonly TextBox _apiKeyBox;
-    private readonly Button _apiKeyButton;
-    private readonly Label _browserLabel;
+    private TextBox _log = null!;
+    private Label _updatePill = null!;
+    private Label _enginePill = null!;
+    private TextBox _apiKeyBox = null!;
+    private Button _apiKeyButton = null!;
+    private Label _browserLabel = null!;
 
     private string? _sessionBrowser; // chosen this session but not remembered
     private bool _closing;
@@ -34,61 +39,118 @@ public partial class MainForm : Form
         _backend = new BackendService(cfg.HarnessPath, cfg.HarnessUrl);
 
         Text = "DSH Launcher";
-        MinimumSize = new Size(780, 560);
+        // Fixed, non-resizable window so the layout always renders as designed.
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
+        MinimizeBox = true;
+        ClientSize = new Size(900, 640);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9F);
 
-        // ---- Header row: title + update status pill ----
+        BuildLayout();
+        WireBackendEvents();
+
+        RefreshApiKeyUi();
+        RefreshBrowserLabel();
+    }
+
+    // ------------------------------------------------------------------
+    // Layout (docked strips, fill-size log)
+    // ------------------------------------------------------------------
+
+    private void BuildLayout()
+    {
+        // 1) Header strip: title left, update pill right.
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(2) ?? "?";
         var title = new Label
         {
             Text = $"DSH Launcher  v{version}",
             Font = new Font(Font ?? SystemFonts.DefaultFont, FontStyle.Bold),
             AutoSize = true,
+            Anchor = AnchorStyles.Left,
         };
         _updatePill = MakePill("Update: —", Color.SlateGray);
-        _updatePill.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _updatePill.Anchor = AnchorStyles.Right;
 
-        var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        header.Controls.Add(title, 0, 0);
-        header.Controls.Add(_updatePill, 1, 0);
+        var headerInner = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        headerInner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerInner.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerInner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        headerInner.Controls.Add(title, 0, 0);
+        headerInner.Controls.Add(_updatePill, 1, 0);
 
-        // ---- Action buttons ----
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var header = new Panel { Dock = DockStyle.Top, Height = 30 };
+        header.Controls.Add(headerInner);
+
+        // 2) Action buttons strip.
+        var actions = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            WrapContents = false,
+            Padding = new Padding(0, 3, 0, 3),
+        };
         actions.Controls.Add(MakeButton("Check Update", BtnCheckUpdate_Click));
         actions.Controls.Add(MakeButton("Restart Backend", (_, _) => _backend.Restart()));
         actions.Controls.Add(MakeButton("Open DS Harness", (_, _) => OpenHarness()));
 
-        // ---- API key + browser row ----
+        var actionStrip = new Panel { Dock = DockStyle.Top, Height = 34 };
+        actionStrip.Controls.Add(actions);
+
+        // 3) Settings strip: API key row + browser picker, right-aligned.
         _apiKeyBox = new TextBox
         {
             PasswordChar = '*',
-            Width = 240,
+            Width = 220,
             ReadOnly = true,
+            Anchor = AnchorStyles.Left,
         };
         _apiKeyButton = MakeButton("", BtnApiKey_Click);
-        _browserLabel = new Label { AutoSize = true };
+        _browserLabel = new Label { AutoSize = true, Anchor = AnchorStyles.Left };
+        var apiKeyLabel = new Label { Text = "API Key:", AutoSize = true, Anchor = AnchorStyles.Left };
+        var browserHint = new Label { Text = "Browser:", AutoSize = true, Anchor = AnchorStyles.Left };
+        var changeBrowser = MakeButton("Change", (_, _) => ChangeBrowser());
 
-        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5 };
+        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 7 };
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-        var apiKeyLabel = new Label { Text = "API Key:", AutoSize = true, Anchor = AnchorStyles.Left };
-        var browserHint = new Label { Text = "Browser:", AutoSize = true, Anchor = AnchorStyles.Left };
-        var changeBrowser = MakeButton("Change", (_, _) => ChangeBrowser());
+        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settings.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         settings.Controls.Add(apiKeyLabel, 0, 0);
         settings.Controls.Add(_apiKeyBox, 1, 0);
         settings.Controls.Add(_apiKeyButton, 2, 0);
-        settings.Controls.Add(browserHint, 3, 0);
-        settings.Controls.Add(_browserLabel, 4, 0);
+        settings.Controls.Add(new Label(), 3, 0); // spacer
+        settings.Controls.Add(browserHint, 4, 0);
+        settings.Controls.Add(_browserLabel, 5, 0);
+        settings.Controls.Add(changeBrowser, 6, 0);
 
-        // ---- Log panel ----
+        var settingsStrip = new Panel { Dock = DockStyle.Top, Height = 32 };
+        settingsStrip.Controls.Add(settings);
+
+        // 4) Footer strip: engine status.
+        _enginePill = MakePill("Engine: —", Color.SlateGray);
+        _enginePill.Anchor = AnchorStyles.Right;
+        var footerHint = new Label
+        {
+            Text = "Close this window to stop the engine.",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+        };
+        var footerInner = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        footerInner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        footerInner.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footerInner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        footerInner.Controls.Add(footerHint, 0, 0);
+        footerInner.Controls.Add(_enginePill, 1, 0);
+
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 28 };
+        footer.Controls.Add(footerInner);
+
+        // 5) Log panel fills everything between the strips.
         _log = new TextBox
         {
             Dock = DockStyle.Fill,
@@ -99,39 +161,20 @@ public partial class MainForm : Form
             BackColor = Color.FromArgb(18, 18, 24),
             ForeColor = Color.Gainsboro,
             Font = new Font("Cascadia Mono", 9F),
+            BorderStyle = BorderStyle.FixedSingle,
         };
 
-        // ---- Footer: engine status ----
-        _enginePill = MakePill("Engine: —", Color.SlateGray);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.Controls.Add(new Label { Text = "Close this window to stop the engine.", AutoSize = true }, 0, 0);
-        footer.Controls.Add(_enginePill, 1, 0);
+        // Dock order matters: add the Fill control first, then the strips,
+        // so each strip takes its edge and the log gets the remaining space.
+        Controls.Add(_log);
+        Controls.Add(footer);
+        Controls.Add(settingsStrip);
+        Controls.Add(actionStrip);
+        Controls.Add(header);
+    }
 
-        // ---- Compose ----
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(12),
-            ColumnCount = 1,
-            RowCount = 5,
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        root.Controls.Add(header, 0, 0);
-        root.Controls.Add(actions, 0, 1);
-        root.Controls.Add(settings, 0, 2);
-        root.Controls.Add(_log, 0, 3);
-        root.Controls.Add(footer, 0, 4);
-
-        Controls.Add(root);
-
-        // ---- Wire up backend + UI state ----
+    private void WireBackendEvents()
+    {
         _backend.LogLine += line =>
         {
             if (!IsDisposed && IsHandleCreated)
@@ -147,9 +190,6 @@ public partial class MainForm : Form
                     ready ? Color.FromArgb(46, 125, 50) : Color.FromArgb(211, 47, 47)));
             }
         };
-
-        RefreshApiKeyUi();
-        RefreshBrowserLabel();
     }
 
     // ------------------------------------------------------------------
@@ -166,7 +206,7 @@ public partial class MainForm : Form
             RunWizard();
         }
 
-        _backend.Start();
+        _ = CheckPrerequisitesAndStartAsync();
         _ = RunUpdateCheckAsync(silent: false);
     }
 
@@ -187,6 +227,53 @@ public partial class MainForm : Form
 
     private void BtnCheckUpdate_Click(object? sender, EventArgs e)
         => _ = RunUpdateCheckAsync(silent: true);
+
+    /// <summary>
+    /// New-user safety net: the engine cannot start without Node.js + pnpm,
+    /// so check first and point missing tools at their install pages.
+    /// </summary>
+    private async Task CheckPrerequisitesAndStartAsync()
+    {
+        var result = await Task.Run(_prereq.Check);
+
+        if (!result.NodeInstalled)
+        {
+            AppendLog("Node.js not found — the engine cannot start without it.");
+            var answer = MessageBox.Show(
+                this,
+                "Node.js is required to run DeepSeek Harness, but it was not found on this computer.\n\n" +
+                "Open the Node.js download page?",
+                "Missing requirement",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (answer == DialogResult.Yes)
+            {
+                BrowserService.OpenApp("https://nodejs.org");
+            }
+            return;
+        }
+
+        if (!result.PnpmInstalled)
+        {
+            AppendLog("pnpm not found — the engine cannot start without it.");
+            var answer = MessageBox.Show(
+                this,
+                "pnpm is required to run DeepSeek Harness, but it was not found.\n\n" +
+                "Install it with:  npm install -g pnpm\n\n" +
+                "Open the pnpm installation page?",
+                "Missing requirement",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (answer == DialogResult.Yes)
+            {
+                BrowserService.OpenApp("https://pnpm.io/installation");
+            }
+            return;
+        }
+
+        AppendLog("Prerequisites OK (Node.js + pnpm found). Starting engine...");
+        _backend.Start();
+    }
 
     private async Task RunUpdateCheckAsync(bool silent)
     {
@@ -322,7 +409,7 @@ public partial class MainForm : Form
 
     private static Button MakeButton(string text, EventHandler onClick)
     {
-        var button = new Button { Text = text, Width = 120, AutoSize = false };
+        var button = new Button { Text = text, Width = 116, AutoSize = false };
         button.Click += onClick;
         return button;
     }

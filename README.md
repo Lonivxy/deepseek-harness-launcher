@@ -17,6 +17,8 @@ manages your API key, checks for updates, and opens the interface in the browser
   2. **Restart Backend** — stops and restarts the engine cleanly (no orphaned processes).
   3. **Open DS Harness** — opens the interface in a standalone app-style browser window.
 - **First-run wizard** — choose Chrome or Edge, with a "Remember my choice" checkbox.
+- **Prerequisite check** — detects missing Node.js / pnpm at startup and points
+  new users to the correct install pages instead of failing silently.
 - **Secure API key handling** — masked input, "do you really want to change?" confirmation,
   stored in a standard `.env` file so automation/CI can read it.
 - **Guaranteed cleanup** — the engine runs inside a Windows Job Object; closing the app kills
