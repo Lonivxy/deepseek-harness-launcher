@@ -234,11 +234,33 @@ public partial class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        // Only ask when the user is actually closing the window (X / Alt+F4);
+        // programmatic closes and Windows shutdown proceed straight through.
+        if (!_closing && e.CloseReason == CloseReason.UserClosing)
+        {
+            var answer = MessageBox.Show(
+                this,
+                "确定要关闭吗？\n\n" +
+                "关闭会停止 DeepSeek Harness 引擎，并关闭它打开的界面窗口。\n" +
+                "（不会关闭你其它 Chrome / Edge 窗口）",
+                "确认关闭",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
         if (!_closing)
         {
             _closing = true;
             _installCts?.Cancel();
             _backend.Stop();
+            // After the engine stops, also close the DS Harness app window we opened —
+            // but only that one, never the user's other browser windows.
+            BrowserService.CloseHarnessWindows();
             _config.Save();
         }
         base.OnFormClosing(e);

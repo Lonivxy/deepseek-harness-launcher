@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DshLauncher.Services;
 
@@ -80,4 +82,82 @@ public static class BrowserService
             UseShellExecute = false,
         });
     }
+
+    /// <summary>
+    /// Closes the DS Harness app window only — the standalone window we opened with
+    /// <c>--app=</c>. It sends <c>WM_CLOSE</c> to top-level Chrome/Edge windows whose
+    /// title mentions DeepSeek Harness but that are NOT regular browser tabs (those
+    /// carry a " - Google Chrome" / " - Microsoft Edge" suffix). Other browser windows
+    /// the user has open are left untouched.
+    /// </summary>
+    public static void CloseHarnessWindows()
+    {
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindowVisible(hwnd))
+            {
+                return true;
+            }
+
+            // Only consider Chrome/Edge top-level windows.
+            GetWindowThreadProcessId(hwnd, out var pid);
+            string processName;
+            try
+            {
+                using var process = Process.GetProcessById((int)pid);
+                processName = process.ProcessName;
+            }
+            catch
+            {
+                return true; // process already gone — keep enumerating
+            }
+            if (!string.Equals(processName, "chrome", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(processName, "msedge", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var title = new StringBuilder(512);
+            GetWindowText(hwnd, title, title.Capacity);
+            var text = title.ToString();
+
+            // App-mode window title is just the page title ("DeepSeek Harness").
+            // Regular tabs append the browser name, e.g. "x - Google Chrome".
+            var isAppWindow = text.Contains("DeepSeek Harness", StringComparison.OrdinalIgnoreCase)
+                && !text.EndsWith(" - Google Chrome", StringComparison.OrdinalIgnoreCase)
+                && !text.EndsWith(" - Microsoft Edge", StringComparison.OrdinalIgnoreCase)
+                && !text.EndsWith(" - Chrome", StringComparison.OrdinalIgnoreCase);
+
+            if (isAppWindow)
+            {
+                // Like clicking the window's × button — graceful, only this window.
+                PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            }
+
+            return true;
+        }, IntPtr.Zero);
+    }
+
+    // ------------------------------------------------------------------
+    // Win32 interop for finding and closing the DS Harness window
+    // ------------------------------------------------------------------
+
+    private const uint WM_CLOSE = 0x0010;
+
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 }

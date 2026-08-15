@@ -33,6 +33,9 @@ checks for updates, and opens the interface in the browser of your choice.
   building and starting the engine.
 - **Guaranteed cleanup** — the engine runs inside a Windows Job Object; closing the app kills
   the entire process tree (`cmd → pnpm → node`), so nothing is left running.
+- **Close confirmation** — before closing, the launcher asks for confirmation, then stops the
+  engine **and** closes the DS Harness interface window it opened — without touching any other
+  Chrome / Edge windows you may have open.
 - **Self-healing engine start** — the launcher automatically retries if the engine's
   first boot hits a transient Windows file-lock issue.
 
@@ -101,8 +104,8 @@ The API key is entered in the harness itself, so it never passes through this la
 Pushing a version tag builds the standalone exe in GitHub Actions and attaches it to a release:
 
 ```powershell
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.5
+git push origin v1.4.5
 ```
 
 See [.github/workflows/release.yml](.github/workflows/release.yml).
