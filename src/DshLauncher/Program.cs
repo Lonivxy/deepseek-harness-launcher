@@ -23,6 +23,17 @@ internal static class Program
             return;
         }
 
+        // Headless Node.js environment installer: --install-node
+        // Installs nvm-windows + Node.js LTS without opening the GUI.
+        if (args.Length >= 1 && args[0] == "--install-node")
+        {
+            var installer = new Services.NodeEnvInstallerService();
+            installer.LogLine += Console.WriteLine;
+            var ok = installer.InstallAsync().GetAwaiter().GetResult();
+            Environment.Exit(ok ? 0 : 1);
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
         Application.Run(new MainForm());
     }

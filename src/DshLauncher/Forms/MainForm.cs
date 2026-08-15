@@ -28,6 +28,7 @@ public partial class MainForm : Form
     private Label _enginePill = null!;
     private Label _browserLabel = null!;
     private Button _installButton = null!;
+    private Button _nodeButton = null!;
     private FlowLayoutPanel _actionsPanel = null!;
     private CheckBox _autoOpenBox = null!;
 
@@ -95,6 +96,10 @@ public partial class MainForm : Form
         _actionsPanel.Controls.Add(MakeButton("Check Update", BtnCheckUpdate_Click));
         _actionsPanel.Controls.Add(MakeButton("Restart Backend", (_, _) => _backend.Restart()));
         _actionsPanel.Controls.Add(MakeButton("Open DS Harness", (_, _) => OpenHarness()));
+        _nodeButton = MakeButton("Install Node.js", async (_, _) => await RunNodeInstallAsync());
+        // Show only when the Node runtime is missing; refreshed at startup.
+        _nodeButton.Visible = false;
+        _actionsPanel.Controls.Add(_nodeButton);
         _installButton = MakeButton("Install Harness", async (_, _) => await RunInstallAsync());
         _installButton.Visible = !HarnessInstallerService.IsInstalled(_config.Config.HarnessPath);
         _actionsPanel.Controls.Add(_installButton);
@@ -257,18 +262,34 @@ public partial class MainForm : Form
         if (!result.NodeInstalled)
         {
             AppendLog("Node.js not found — the engine cannot start without it.");
+            _nodeButton.Visible = true;
+
             var answer = MessageBox.Show(
                 this,
-                "Node.js is required to run DeepSeek Harness, but it was not found on this computer.\n\n" +
-                "Open the Node.js download page?",
-                "Missing requirement",
+                "检测到当前环境缺少 Node.js。\n\n" +
+                "是否一键自动安装？\n" +
+                "（将自动安装 nvm-windows + Node.js LTS，无需管理员权限；\n" +
+                "安装完成后会自动构建并启动引擎）",
+                "缺少运行环境",
                 MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
+                MessageBoxIcon.Question);
             if (answer == DialogResult.Yes)
             {
-                BrowserService.OpenApp("https://nodejs.org");
+                var installed = await RunNodeInstallAsync();
+                if (!installed)
+                {
+                    AppendLog("Node.js installation did not complete — the engine will not start.");
+                    return;
+                }
+                // Re-check now that Node is on the PATH; then fall through to git/pnpm/harness.
+                result = await Task.Run(_prereq.Check);
+                _nodeButton.Visible = false;
             }
-            return;
+            else
+            {
+                AppendLog("Node.js installation skipped — the engine will not start until it is installed.");
+                return;
+            }
         }
 
         if (!result.GitInstalled)
@@ -381,6 +402,33 @@ public partial class MainForm : Form
                     "Installation did not complete. Check the log above for details.",
                     "Install failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+        finally
+        {
+            _installCts?.Dispose();
+            _installCts = null;
+            SetControlsEnabled(true);
+        }
+    }
+
+    /// <summary>Runs the one-click Node.js installer (nvm-windows + Node LTS), streaming progress.</summary>
+    private async Task<bool> RunNodeInstallAsync()
+    {
+        SetControlsEnabled(false);
+        _installCts = new CancellationTokenSource();
+        try
+        {
+            var installer = new NodeEnvInstallerService();
+            installer.LogLine += SafeAppendLog;
+
+            var ok = await installer.InstallAsync(_installCts.Token);
+            if (!ok)
+            {
+                MessageBox.Show(this,
+                    "Node.js installation did not complete. Check the log above for details.",
+                    "Install failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return ok;
         }
         finally
         {

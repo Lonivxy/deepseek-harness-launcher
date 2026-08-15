@@ -23,10 +23,14 @@ checks for updates, and opens the interface in the browser of your choice.
      (works even where GitHub is blocked, via a CDN mirror).
   2. **Restart Backend** — stops and restarts the engine cleanly (no orphaned processes).
   3. **Open DS Harness** — opens the interface in a standalone app-style browser window.
-  4. **Install Harness** — appears automatically when the harness is missing.
+  4. **Install Node.js** — appears automatically when Node.js is missing.
+  5. **Install Harness** — appears automatically when the harness is missing.
 - **First-run wizard** — choose Chrome or Edge, with a "Remember my choice" checkbox.
-- **Prerequisite check** — detects missing Node.js / Git / pnpm at startup, installs
-  pnpm automatically via npm when possible, and points users to install pages otherwise.
+- **Prerequisite check** — detects missing Node.js / Git / pnpm at startup. Missing
+  Node.js triggers a **one-click auto-install** of nvm-windows + Node.js LTS
+  (per-user, no admin rights needed); pnpm is installed automatically via npm.
+  After the Node.js environment is set up, the launcher continues straight to
+  building and starting the engine.
 - **Guaranteed cleanup** — the engine runs inside a Windows Job Object; closing the app kills
   the entire process tree (`cmd → pnpm → node`), so nothing is left running.
 - **Self-healing engine start** — the launcher automatically retries if the engine's
@@ -49,9 +53,11 @@ checks for updates, and opens the interface in the browser of your choice.
 
 1. Download the latest `DeepSeekHarnessLauncher.exe` from the **Releases** page.
 2. Run it. On first launch a wizard asks which browser to use.
-3. If DeepSeek Harness isn't installed, the launcher offers to download and set
+3. If Node.js is missing, the launcher asks whether to install it automatically —
+   it sets up nvm-windows + Node.js LTS in one click (no admin rights needed).
+4. If DeepSeek Harness isn't installed, the launcher offers to download and set
    it up automatically — just click **Yes** and wait a few minutes.
-4. Click **Open DS Harness** once the engine reports online and enter your API key
+5. Click **Open DS Harness** once the engine reports online and enter your API key
    in the harness's own settings.
 
 Closing the app stops the engine. No console windows, no leftover processes.
@@ -95,16 +101,17 @@ The API key is entered in the harness itself, so it never passes through this la
 Pushing a version tag builds the standalone exe in GitHub Actions and attaches it to a release:
 
 ```powershell
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 See [.github/workflows/release.yml](.github/workflows/release.yml).
 
-Power users can also run the installer headlessly (used by CI):
+Power users can also run the installers headlessly (used by CI):
 
 ```powershell
-DeepSeekHarnessLauncher.exe --install-harness "D:\dsh"
+DeepSeekHarnessLauncher.exe --install-harness "D:\dsh"   # clone + install + build the harness
+DeepSeekHarnessLauncher.exe --install-node               # install nvm-windows + Node.js LTS
 ```
 
 ## Project structure
@@ -118,7 +125,7 @@ deepseek-harness-launcher/
 ├── src/
 │   └── DshLauncher/
 │       ├── DshLauncher.csproj
-│       ├── Program.cs              # entry point (+ --install-harness CLI mode)
+│       ├── Program.cs              # entry point (+ --install-harness / --install-node CLI modes)
 │       ├── app.manifest            # DPI awareness, non-admin
 │       ├── Assets/
 │       │   └── app.ico             # app icon
@@ -129,6 +136,7 @@ deepseek-harness-launcher/
 │       │   ├── BrowserService.cs   # Chrome/Edge app-window launcher
 │       │   ├── ConfigService.cs    # config.json
 │       │   ├── HarnessInstallerService.cs  # one-click clone/install/build
+│       │   ├── NodeEnvInstallerService.cs  # one-click nvm-windows + Node.js LTS
 │       │   ├── PrerequisitesService.cs  # Node.js / pnpm detection
 │       │   └── UpdateService.cs    # version comparison + CDN fallback
 │       └── Forms/

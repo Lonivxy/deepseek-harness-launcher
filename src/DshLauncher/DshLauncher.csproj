@@ -13,8 +13,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.3.0</Version>
-    <InformationalVersion>1.3.0</InformationalVersion>
+    <Version>1.4.0</Version>
+    <InformationalVersion>1.4.0</InformationalVersion>
 
     <!-- Packaging: single-file, framework-dependent by default (dev).
          The release workflow overrides SelfContained=true for a portable exe. -->
