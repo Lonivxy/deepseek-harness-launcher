@@ -29,10 +29,12 @@ public partial class MainForm : Form
     private Label _browserLabel = null!;
     private Button _installButton = null!;
     private FlowLayoutPanel _actionsPanel = null!;
+    private CheckBox _autoOpenBox = null!;
 
     private string? _sessionBrowser; // chosen this session but not remembered
     private bool _closing;
     private CancellationTokenSource? _installCts;
+    private bool _wasReady;
 
     public MainForm()
     {
@@ -105,17 +107,35 @@ public partial class MainForm : Form
         var browserHint = new Label { Text = "Browser:", AutoSize = true, Anchor = AnchorStyles.Left };
         var changeBrowser = MakeButton("Change", (_, _) => ChangeBrowser());
 
-        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
+        var settings = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5 };
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settings.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settings.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        _autoOpenBox = new CheckBox
+        {
+            Text = "Auto-open interface when ready",
+            AutoSize = true,
+            Anchor = AnchorStyles.Right,
+            Checked = _config.Config.AutoOpenHarness,
+        };
+        var autoOpenTip = new ToolTip();
+        autoOpenTip.SetToolTip(_autoOpenBox,
+            "DeepSeek Harness will automatically open after the engine starts.");
+        _autoOpenBox.CheckedChanged += (_, _) =>
+        {
+            _config.Config.AutoOpenHarness = _autoOpenBox.Checked;
+            _config.Save();
+        };
 
         settings.Controls.Add(new Label { AutoSize = true }, 0, 0); // zero-width spacer
         settings.Controls.Add(browserHint, 1, 0);
         settings.Controls.Add(_browserLabel, 2, 0);
         settings.Controls.Add(changeBrowser, 3, 0);
+        settings.Controls.Add(_autoOpenBox, 4, 0);
 
         var settingsStrip = new Panel { Dock = DockStyle.Top, Height = 38 };
         settingsStrip.Controls.Add(settings);
@@ -177,6 +197,14 @@ public partial class MainForm : Form
             {
                 BeginInvoke(() => SetPill(_enginePill, ready ? "Engine: Online" : "Engine: Offline",
                     ready ? Color.FromArgb(46, 125, 50) : Color.FromArgb(211, 47, 47)));
+                BeginInvoke(() =>
+                {
+                    if (ready && !_wasReady)
+                    {
+                        TryAutoOpenOnReady();
+                    }
+                    _wasReady = ready;
+                });
             }
         };
     }
@@ -310,7 +338,25 @@ public partial class MainForm : Form
         }
 
         AppendLog("Prerequisites OK (Node.js, pnpm, git found). Starting engine...");
+        if (_autoOpenBox.Checked)
+        {
+            AppendLog("Note: DeepSeek Harness will automatically open after the engine starts.");
+        }
         _backend.Start();
+    }
+
+    /// <summary>Opens the DS Harness interface automatically when the engine comes online.</summary>
+    private void TryAutoOpenOnReady()
+    {
+        if (!_autoOpenBox.Checked
+            || !HarnessInstallerService.IsInstalled(_config.Config.HarnessPath))
+        {
+            return;
+        }
+
+        var browser = _sessionBrowser ?? _config.Config.BrowserChoice;
+        BrowserService.OpenApp(_config.Config.HarnessUrl, browser);
+        AppendLog("Engine ready — opened DS Harness interface automatically.");
     }
 
     /// <summary>Runs the one-click harness installer, streaming progress to the log.</summary>

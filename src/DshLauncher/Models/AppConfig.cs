@@ -21,6 +21,9 @@ public class AppConfig
     /// <summary>Local URL served by the harness web profile.</summary>
     public string HarnessUrl { get; set; } = "http://127.0.0.1:3080";
 
+    /// <summary>Whether the interface should open automatically once the engine is ready.</summary>
+    public bool AutoOpenHarness { get; set; } = true;
+
     /// <summary>Path of the .env file that stores the API key for the harness.</summary>
     public string ApiKeyPath { get; set; } = "";
 

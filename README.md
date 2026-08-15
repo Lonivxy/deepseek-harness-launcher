@@ -16,6 +16,8 @@ checks for updates, and opens the interface in the browser of your choice.
   users never need to touch a terminal. Uses a faster China mirror automatically
   where the official npm registry is slow.
 - **Status indicator** — shows whether your DeepSeek Harness installation is up to date.
+- **Auto-open** — the DS Harness interface opens by itself the moment the engine
+  is ready (toggle in the settings row; a note appears before the engine starts).
 - **Main action buttons**:
   1. **Check Update** — compares the installed harness against the latest version
      (works even where GitHub is blocked, via a CDN mirror).
