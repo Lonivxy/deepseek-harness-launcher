@@ -1,6 +1,10 @@
 # DeepSeek Harness Launcher
 
 [![CI](https://github.com/Lonivxy/deepseek-harness-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/Lonivxy/deepseek-harness-launcher/actions/workflows/ci.yml)
+[![.NET](https://img.shields.io/badge/.NET-10+-512BD4?style=flat&logo=.net&logoColor=white)](https://dotnet.microsoft.com/)
+[![C#](https://img.shields.io/badge/C%23-12+-239120?style=flat&logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
+[![WinForms](https://img.shields.io/badge/WinForms-Windows%20GUI-0078D6?style=flat&logo=windows&logoColor=white)](https://learn.microsoft.com/dotnet/desktop/winforms/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A friendly Windows desktop companion for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 No command windows, no browser tabs — just a clean GUI that starts the engine, streams its logs,
